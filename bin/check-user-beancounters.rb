@@ -43,25 +43,47 @@ class UserBeancounters < Sensu::Plugin::Metric::CLI::Graphite
       critical 'Not found: /proc/user_beancounters'
     end
 
-    fail_counts = 0
-    timestamp = Time.now.to_i
-    beancounters = `sudo cat /proc/user_beancounters`
-    (2..beancounters.split(/\n/).length).each do |i|
-      line = beancounters.split(/\n/)[i]
+    if File.exist?('/tmp/user_beancounters')
+      initial_fail_counts = 0
+      initial_beancounters = `cat /tmp/user_beancounters`
+      fail_counts = 0
+      beancounters = `sudo cat /proc/user_beancounters`
+      parse_beancounters(beancounters).each do |items|
+        fail_counts += items[5].to_i if config[:counter_name].empty? || config[:counter_name] == items[0]
+      end
+      parse_beancounters(initial_beancounters).each do |items|
+        initial_fail_counts += items[5].to_i if config[:counter_name].empty? || config[:counter_name] == items[0]
+      end
+
+      actual_fail_counts = fail_counts - initial_fail_counts
+      if actual_fail_counts >= config[:critical]
+        critical "#{actual_fail_counts} ; #{actual_fail_counts} failed\n"
+      elsif actual_fail_counts >= config[:warn]
+        warning "#{actual_fail_counts} ; #{actual_fail_counts} failed\n"
+      else
+        ok "#{actual_fail_counts} ; #{actual_fail_counts} failed\n"
+      end
+    else
+      beancounters = `sudo cat /proc/user_beancounters`
+      File.open('/tmp/user_beancounters', 'w').write(beancounters)
+      ok "Initial check"
+    end
+  end
+
+  private
+
+  def parse_beancounters(str)
+    beancounters = []
+    lines = str.split(/\n/)
+    (2..lines.length).each do |i|
+      line = lines[i]
       next unless line
       line.gsub!(/\d*:/, '')
       items = line.chomp.split(/\s+/)
       items.reject!(&:empty?)
       next if items.count <= 0
-      fail_counts += items[5].to_i if config[:counter_name].empty? || config[:counter_name] == items[0]
+      beancounters.push(items)
     end
-
-    if fail_counts >= config[:critical]
-      critical "#{fail_counts} ; #{fail_counts} failed\n"
-    elsif fail_counts >= config[:warn]
-      warning "#{fail_counts} ; #{fail_counts} failed\n"
-    else
-      ok "#{fail_counts} ; #{fail_counts} failed\n"
-    end
+    beancounters
   end
 end
