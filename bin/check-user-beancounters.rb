@@ -58,7 +58,7 @@ class UserBeancounters < Sensu::Plugin::Metric::CLI::Graphite
 
     if fail_counts >= config[:critical]
       critical "#{fail_counts} ; #{fail_counts} failed\n"
-    elsif fail_counts >= config[:wran]
+    elsif fail_counts >= config[:warn]
       warning "#{fail_counts} ; #{fail_counts} failed\n"
     else
       ok "#{fail_counts} ; #{fail_counts} failed\n"
